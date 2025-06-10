@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Chat - 会話型インターフェース</title>
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Prism.js for syntax highlighting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" rel="stylesheet" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            font-weight: 500;
+        }
+        
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            scroll-behavior: smooth;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.2s ease-in;
+            will-change: transform, opacity;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            text-align: right;
+        }
+        
+        .message-content {
+            display: inline-block;
+            padding: 12px 18px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+            position: relative;
+        }
+        
+        .user .message-content {
+            background: #007bff;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .assistant .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+            text-align: left;
+        }
+        
+        /* ストリーミング中のカーソル */
+        .streaming-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #007bff;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+            vertical-align: text-bottom;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        /* 重要: コードブロックの改行を保持するCSS */
+        .message-content pre {
+            background: #272822 !important;
+            padding: 15px;
+            border-radius: 0 0 8px 8px;
+            overflow-x: auto;
+            margin: 0 0 10px 0;
+            border: none;
+            position: relative;
+            /* 改行を保持する重要な設定 */
+            white-space: pre !important;
+            overflow-wrap: normal !important;
+            word-wrap: normal !important;
+            word-break: normal !important;
+            max-height: 400px;
+            max-width: 100%;
+        }
+        
+        .message-content pre code {
+            background: transparent !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            color: #f8f8f2 !important;
+            font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            /* 改行を保持する重要な設定 */
+            white-space: pre !important;
+            overflow-wrap: normal !important;
+            word-wrap: normal !important;
+            word-break: normal !important;
+            display: block;
+            width: 100%;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e1e1e;
+            padding: 8px 12px;
+            border-radius: 8px 8px 0 0;
+            font-size: 12px;
+            color: #888;
+            margin: 10px 0 0 0;
+        }
+        
+        .copy-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background 0.2s;
+        }
+        
+        .copy-button:hover {
+            background: #0056b3;
+        }
+        
+        /* Prism.jsのデフォルト設定をオーバーライド */
+        .message-content pre[class*="language-"] {
+            white-space: pre !important;
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+            max-height: 400px !important;
+            tab-size: 4 !important;
+            -moz-tab-size: 4 !important;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
+            word-wrap: normal !important;
+            overflow-wrap: normal !important;
+        }
+        
+        .message-content code[class*="language-"] {
+            white-space: pre !important;
+            tab-size: 4 !important;
+            -moz-tab-size: 4 !important;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
+            word-wrap: normal !important;
+            overflow-wrap: normal !important;
+        }
+        
+        .message-content code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+        }
+        
+        /* Markdown要素のスタイル */
+        .message-content h1, .message-content h2, .message-content h3, 
+        .message-content h4, .message-content h5, .message-content h6 {
+            margin: 16px 0 8px 0;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        
+        .message-content h1 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        .message-content h2 { font-size: 1.3em; }
+        .message-content h3 { font-size: 1.1em; }
+        
+        .message-content p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        
+        .message-content ul, .message-content ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+        
+        .message-content li {
+            margin: 4px 0;
+            line-height: 1.6;
+        }
+        
+        .message-content blockquote {
+            margin: 8px 0;
+            padding: 8px 16px;
+            border-left: 4px solid #ddd;
+            background: #f8f9fa;
+            color: #666;
+        }
+        
+        .message-content table {
+            border-collapse: collapse;
+            margin: 12px 0;
+            width: 100%;
+            max-width: 100%;
+            overflow: auto;
+        }
+        
+        .message-content th, .message-content td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .message-content th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+        
+        .message-content tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .message-content a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        .message-content a:hover {
+            text-decoration: underline;
+        }
+        
+        .message-content hr {
+            margin: 16px 0;
+            border: none;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .message-content em {
+            font-style: italic;
+        }
+        
+        .message-content strong {
+            font-weight: 600;
+        }
+        
+        .message-content del {
+            text-decoration: line-through;
+            color: #999;
+        }
+        
+        /* タスクリスト */
+        .message-content input[type="checkbox"] {
+            margin-right: 6px;
+        }
+        
+        .message-content .task-list-item {
+            list-style: none;
+            margin-left: -24px;
+        }
+        
+        /* 進捗情報のスタイル */
+        .progress-info {
+            background: #f0f8ff;
+            border: 1px solid #e0e8f0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 8px 0;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: pulse 2s infinite;
+        }
+        
+        .progress-phase {
+            font-weight: 500;
+            color: #2c5aa0;
+            flex: 1;
+        }
+        
+        .progress-cost {
+            background: #fff3cd;
+            color: #856404;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .progress-duration {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .completion-stats {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin: 8px 0 0 0;
+            font-size: 12px;
+            color: #155724;
+            text-align: right;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .timestamp {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .input-container {
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            padding: 15px 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        #messageInput {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        #messageInput:focus {
+            border-color: #007bff;
+        }
+        
+        #sendButton {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        
+        #sendButton:hover {
+            background: #0056b3;
+        }
+        
+        #sendButton:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 20px;
+        }
+        
+        .typing-indicator.show {
+            display: block;
+        }
+        
+        .typing-dots {
+            display: inline-flex;
+            gap: 4px;
+        }
+        
+        .typing-dots span {
+            display: block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+        
+        .examples {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .examples h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .example-chip {
+            display: inline-block;
+            padding: 6px 12px;
+            background: #f0f0f0;
+            border-radius: 16px;
+            margin: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        .example-chip:hover {
+            background: #e0e0e0;
+        }
+        
+        /* パフォーマンス最適化 */
+        .message-content img {
+            will-change: transform;
+        }
+        
+        /* スケルトンローダー */
+        .skeleton-loader {
+            display: inline-block;
+            height: 20px;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton 1.5s infinite;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        
+        @keyframes skeleton {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 Claude Code Chat - 会話型インターフェース</h1>
+    </div>
+    
+    <div class="chat-container" id="chatContainer">
+        <div class="examples">
+            <h3>💡 クリックして試してみる：</h3>
+            <span class="example-chip" onclick="sendExample('test_work.py を作ってください')">test_work.py を作成</span>
+            <span class="example-chip" onclick="sendExample('hello.py ファイルを作成して')">hello.py 作成</span>
+            <span class="example-chip" onclick="sendExample('どんなファイルが作れますか？')">作成可能なファイル</span>
+            <span class="example-chip" onclick="sendExample('簡単なWebサーバーを作って')">Webサーバー作成</span>
+        </div>
+        
+        <div id="messages"></div>
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="message assistant">
+                <div class="message-content">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="input-container">
+        <input type="text" id="messageInput" placeholder="メッセージを入力..." autofocus>
+        <button id="sendButton" onclick="sendMessage()">送信</button>
+    </div>
+
+    <script>
+        let sessionId = localStorage.getItem('claude_chat_session') || generateSessionId();
+        localStorage.setItem('claude_chat_session', sessionId);
+        let currentStreamingMessage = null;
+        let currentController = null; // 現在のリクエスト制御用
+        
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        
+        // メッセージフォーマット関数をメモ化
+        const memoizedFormatters = new Map();
+        
+        function addMessage(content, type = 'assistant', isStreaming = false) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            if (isStreaming) {
+                // ストリーミング用の初期表示
+                contentDiv.innerHTML = '<div class="skeleton-loader" style="width: 200px;"></div>';
+                currentStreamingMessage = contentDiv;
+            } else {
+                contentDiv.innerHTML = formatMessage(content);
+            }
+            
+            const timestamp = document.createElement('div');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString('ja-JP');
+            
+            messageDiv.appendChild(contentDiv);
+            messageDiv.appendChild(timestamp);
+            messagesDiv.appendChild(messageDiv);
+            
+            // スクロール（requestAnimationFrameで最適化）
+            requestAnimationFrame(() => {
+                const container = document.getElementById('chatContainer');
+                container.scrollTop = container.scrollHeight;
+            });
+            
+            return contentDiv;
+        }
+        
+        // ストリーミング更新用の関数
+        function updateStreamingMessage(content, isComplete = false, progressInfo = null) {
+            if (!currentStreamingMessage) return;
+            
+            // 進捗情報がある場合は表示
+            if (progressInfo && progressInfo.message && !isComplete) {
+                const progressHtml = `<div class="progress-info">
+                    <span class="progress-phase">${getPhaseIcon(progressInfo.phase)} ${progressInfo.message}</span>
+                    ${progressInfo.cost > 0 ? `<span class="progress-cost">💰 $${progressInfo.cost.toFixed(4)}</span>` : ''}
+                    ${progressInfo.duration > 0 ? `<span class="progress-duration">⏱️ ${(progressInfo.duration/1000).toFixed(1)}s</span>` : ''}
+                </div>`;
+                
+                if (content) {
+                    const formattedContent = formatMessage(content);
+                    currentStreamingMessage.innerHTML = progressHtml + '<hr>' + formattedContent + '<span class="streaming-cursor"></span>';
+                } else {
+                    currentStreamingMessage.innerHTML = progressHtml + '<span class="streaming-cursor"></span>';
+                }
+            } else if (isComplete) {
+                // 最終表示時は進捗情報を削除
+                const finalContent = content ? formatMessage(content) : '';
+                currentStreamingMessage.innerHTML = finalContent;
+                
+                // 完了時に統計情報を追加
+                if (progressInfo && (progressInfo.cost > 0 || progressInfo.duration > 0)) {
+                    const statsHtml = `<div class="completion-stats">
+                        ${progressInfo.cost > 0 ? `💰 コスト: $${progressInfo.cost.toFixed(4)}` : ''}
+                        ${progressInfo.duration > 0 ? ` ⏱️ 実行時間: ${(progressInfo.duration/1000).toFixed(1)}秒` : ''}
+                    </div>`;
+                    currentStreamingMessage.innerHTML += statsHtml;
+                }
+                
+                currentStreamingMessage = null;
+                
+                // シンタックスハイライトを非同期で適用
+                requestIdleCallback(() => {
+                    if (typeof Prism !== 'undefined') {
+                        Prism.highlightAll();
+                    }
+                }, { timeout: 500 });
+            } else {
+                // 通常のコンテンツ更新
+                const formattedContent = formatMessage(content);
+                currentStreamingMessage.innerHTML = formattedContent + '<span class="streaming-cursor"></span>';
+            }
+        }
+        
+        function getPhaseIcon(phase) {
+            const icons = {
+                'init': '🔄',
+                'system': '⚙️',
+                'responding': '💭',
+                'complete': '✅'
+            };
+            return icons[phase] || '📡';
+        }
+        
+        function formatMessage(content, isMarkdown = null) {
+            // キャッシュチェック
+            const cacheKey = content.substring(0, 100);
+            if (memoizedFormatters.has(cacheKey) && content.length < 500) {
+                return memoizedFormatters.get(cacheKey);
+            }
+            
+            // Markdownかどうかの判定
+            if (isMarkdown === null) {
+                isMarkdown = detectMarkdownContent(content);
+            }
+            
+            // コードブロックを一時的に保護
+            const codeBlocks = [];
+            let codeBlockIndex = 0;
+            
+            // フェンスコードブロック（```）の処理
+            content = content.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+                const language = lang || 'text';
+                const languageClass = `language-${language}`;
+                const displayLang = getLanguageDisplayName(language);
+                const codeId = 'code_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                const codeBlock = `<div class="code-header"><span>${displayLang}</span><button class="copy-button" onclick="copyCode('${codeId}')">コピー</button></div><pre><code id="${codeId}" class="${languageClass}">${escapeHtml(code.trim())}</code></pre>`;
+                codeBlocks.push(codeBlock);
+                return `\n%%%CODEBLOCK${codeBlockIndex++}%%%\n`;
+            });
+            
+            // HTMLをエスケープ
+            content = escapeHtml(content);
+            
+            if (isMarkdown) {
+                // Markdownの場合のみフル機能を適用
+                
+                // インラインコード
+                content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+                
+                // 見出し
+                content = content.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+                content = content.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+                content = content.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+                
+                // 太字
+                content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                // 斜体
+                content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                
+                // 取り消し線
+                content = content.replace(/~~(.*?)~~/g, '<del>$1</del>');
+                
+                // リスト（番号なし）
+                content = content.replace(/^[\*\-] (.*)$/gm, '<li>$1</li>');
+                content = content.replace(/(<li>.*<\/li>\n?)+/g, (match) => {
+                    return '<ul>' + match + '</ul>';
+                });
+                
+                // リスト（番号付き）
+                content = content.replace(/^\d+\. (.*)$/gm, '<li>$1</li>');
+                content = content.replace(/(<li>.*<\/li>\n?)+/g, (match) => {
+                    if (!match.includes('<ul>')) {
+                        return '<ol>' + match + '</ol>';
+                    }
+                    return match;
+                });
+                
+                // 引用
+                content = content.replace(/^&gt; (.*)$/gm, '<blockquote>$1</blockquote>');
+                content = content.replace(/(<blockquote>.*<\/blockquote>\n?)+/g, (match) => {
+                    return match.replace(/<\/blockquote>\n?<blockquote>/g, '<br>');
+                });
+                
+                // 水平線
+                content = content.replace(/^---$/gm, '<hr>');
+                
+                // リンク
+                content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            } else {
+                // 通常のテキストの場合は最小限の処理
+                
+                // インラインコードのみ
+                content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+                
+                // 太字のみ
+                content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            }
+            
+            // 改行
+            content = content.replace(/\n/g, '<br>');
+            
+            // コードブロックを復元
+            codeBlocks.forEach((codeBlock, index) => {
+                content = content.replace(`%%%CODEBLOCK${index}%%%`, codeBlock);
+            });
+            
+            // 連続した<br>を削除
+            content = content.replace(/(<br>){3,}/g, '<br><br>');
+            
+            // キャッシュに保存
+            if (content.length < 500) {
+                memoizedFormatters.set(cacheKey, content);
+            }
+            
+            return content;
+        }
+        
+        function detectMarkdownContent(content) {
+            // Markdownファイルかどうかを判定
+            const mdIndicators = [
+                /\.md\b/i,
+                /README/i,
+                /REQUIREMENTS/i,
+                /CHANGELOG/i,
+                /^#+ /m,  // 見出し記法
+                /\*\*.*?\*\*/,  // 太字記法
+                /\[.*?\]\(.*?\)/,  // リンク記法
+                /^[\*\-] /m,  // リスト記法
+                /^>/m  // 引用記法
+            ];
+            
+            return mdIndicators.some(pattern => pattern.test(content));
+        }
+        
+        function getLanguageDisplayName(lang) {
+            const languageNames = {
+                'python': 'Python',
+                'javascript': 'JavaScript',
+                'js': 'JavaScript',
+                'html': 'HTML',
+                'css': 'CSS',
+                'bash': 'Bash',
+                'sh': 'Shell',
+                'json': 'JSON',
+                'sql': 'SQL',
+                'yaml': 'YAML',
+                'xml': 'XML',
+                'java': 'Java',
+                'cpp': 'C++',
+                'c': 'C',
+                'php': 'PHP',
+                'ruby': 'Ruby',
+                'go': 'Go',
+                'rust': 'Rust',
+                'typescript': 'TypeScript',
+                'ts': 'TypeScript'
+            };
+            return languageNames[lang.toLowerCase()] || lang.toUpperCase();
+        }
+        
+        function copyCode(codeId) {
+            const codeElement = document.getElementById(codeId);
+            const text = codeElement.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                // 一時的にボタンテキストを変更
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = 'コピー済み!';
+                button.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '#007bff';
+                }, 1500);
+            }).catch(err => {
+                console.error('コピーに失敗しました: ', err);
+            });
+        }
+        
+        function escapeHtml(text) {
+            // HTMLエスケープを行うが、改行文字は保持する
+            const escapeMap = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            };
+            
+            return text.replace(/[&<>"']/g, char => escapeMap[char]);
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = true;
+            
+            // ユーザーメッセージを即座に表示
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // アシスタントメッセージのプレースホルダーを作成
+            const assistantContent = addMessage('', 'assistant', true);
+            
+            // タイムアウト制御
+            const controller = new AbortController();
+            currentController = controller; // グローバルに保存
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, 180000); // 3分のタイムアウト
+            
+            try {
+                // ストリーミングレスポンスを試みる
+                const response = await fetch('http://127.0.0.1:8081/api/chat/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: sessionId
+                    }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.headers.get('content-type')?.includes('text/event-stream')) {
+                    // ストリーミングレスポンス
+                    await handleStreamingResponse(response, controller);
+                } else {
+                    // 通常のレスポンス（フォールバック）
+                    const data = await response.json();
+                    updateStreamingMessage(data.response, true);
+                }
+                
+            } catch (error) {
+                clearTimeout(timeoutId);
+                
+                if (error.name === 'AbortError') {
+                    updateStreamingMessage('⏰ リクエストがタイムアウトしました', true);
+                    return;
+                }
+                
+                console.log('Streaming failed, trying fallback:', error);
+                
+                // フォールバック: 通常のAPIを使用
+                try {
+                    const fallbackController = new AbortController();
+                    const fallbackTimeoutId = setTimeout(() => {
+                        fallbackController.abort();
+                    }, 180000); // フォールバックも3分
+                    
+                    const response = await fetch('http://127.0.0.1:8081/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: message,
+                            session_id: sessionId
+                        }),
+                        signal: fallbackController.signal
+                    });
+                    
+                    clearTimeout(fallbackTimeoutId);
+                    const data = await response.json();
+                    updateStreamingMessage(data.response, true);
+                } catch (fallbackError) {
+                    if (fallbackError.name === 'AbortError') {
+                        updateStreamingMessage('⏰ フォールバックもタイムアウトしました', true);
+                    } else {
+                        updateStreamingMessage('❌ エラー: ' + fallbackError.message, true);
+                    }
+                }
+            } finally {
+                currentController = null; // 制御をクリア
+                sendButton.disabled = false;
+                // 入力欄にフォーカスを戻す
+                input.focus();
+            }
+        }
+        
+        async function handleStreamingResponse(response, controller = null) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let finalContent = '';
+            let progressInfo = {
+                phase: 'init',
+                cost: 0,
+                duration: 0
+            };
+            
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                                // 最終更新
+                                updateStreamingMessage(finalContent, true, progressInfo);
+                                return;
+                            } else {
+                                try {
+                                    const chunk = JSON.parse(data);
+                                    const processed = processStreamChunk(chunk, progressInfo);
+                                    
+                                    if (processed.content) {
+                                        finalContent = processed.content;
+                                        updateStreamingMessage(finalContent, false, progressInfo);
+                                    } else if (processed.progress) {
+                                        updateStreamingMessage(finalContent, false, progressInfo);
+                                    }
+                                    
+                                } catch (e) {
+                                    console.log('JSON parse error:', e, 'Data:', data);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Streaming error:', error);
+                updateStreamingMessage('❌ ストリーミングエラー: ' + error.message, true);
+            } finally {
+                // 確実にreaderを閉じる
+                try {
+                    reader.releaseLock();
+                } catch (e) {
+                    console.log('Reader release error:', e);
+                }
+            }
+        }
+        
+        function processStreamChunk(chunk, progressInfo) {
+            const type = chunk.type;
+            let hasContent = false;
+            let hasProgress = false;
+            
+            switch (type) {
+                case 'system':
+                    progressInfo.phase = 'system';
+                    progressInfo.message = chunk.message || 'システム初期化中...';
+                    hasProgress = true;
+                    break;
+                    
+                case 'assistant':
+                    progressInfo.phase = 'responding';
+                    progressInfo.message = 'Claude Codeが応答中...';
+                    if (chunk.content) {
+                        hasContent = true;
+                        return { content: chunk.content };
+                    }
+                    hasProgress = true;
+                    break;
+                    
+                case 'result':
+                    progressInfo.phase = 'complete';
+                    progressInfo.message = '処理完了';
+                    progressInfo.cost = chunk.cost || 0;
+                    progressInfo.duration = chunk.duration || 0;
+                    if (chunk.content) {
+                        hasContent = true;
+                        return { content: chunk.content };
+                    }
+                    hasProgress = true;
+                    break;
+                    
+                case 'init':
+                    progressInfo.phase = 'init';
+                    progressInfo.message = chunk.message || '処理開始...';
+                    hasProgress = true;
+                    break;
+            }
+            
+            return { hasContent, hasProgress, progress: hasProgress };
+        }
+        
+        function sendExample(text) {
+            document.getElementById('messageInput').value = text;
+            sendMessage();
+        }
+        
+        // Enterキーで送信
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // ESCキーでリクエストキャンセル
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && currentController) {
+                console.log('ESCキーでリクエストをキャンセル');
+                currentController.abort();
+                updateStreamingMessage('⚠️ ユーザーによってキャンセルされました', true);
+                
+                // ボタンの状態をリセット
+                const sendButton = document.getElementById('sendButton');
+                sendButton.disabled = false;
+                
+                // 入力欄にフォーカスを戻す
+                const input = document.getElementById('messageInput');
+                input.focus();
+                
+                currentController = null;
+            }
+        });
+        
+        // 初期メッセージ
+        addMessage(`こんにちは！Claude Code Chatです。
+
+📝 ファイル作成やプログラミングのお手伝いをします。
+🎯 「test_work.py を作って」のようにお話しください。
+💬 会話の文脈を理解して適切に対応します。
+⚡ 処理中に **ESCキー** でキャンセル可能です。
+
+何をお手伝いしましょうか？`);
+        
+        // Prism.jsの遅延読み込み
+        window.addEventListener('load', () => {
+            // 必要に応じてPrism.jsを適用
+            if (typeof Prism !== 'undefined') {
+                Prism.highlightAll();
+            }
+        });
+    </script>
+    
+    <!-- Prism.js scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+</body>
+</html>
