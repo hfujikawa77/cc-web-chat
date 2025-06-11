@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-code-chat"
+version = "1.0.0"
+description = "Chat-based Web UI for Claude Code CLI with smartphone control support"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Claude Code Chat Team"}
+]
+keywords = ["claude", "chat", "ui", "cli", "smartphone"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Tools",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+]
+dependencies = [
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+]
+
+[project.scripts]
+claude-code-chat = "claude_code_chat.server:main"
+ccc = "claude_code_chat.server:main"
+
+[project.urls]
+Homepage = "https://github.com/your-repo/claude-code-chat"
+Repository = "https://github.com/your-repo/claude-code-chat"
+Issues = "https://github.com/your-repo/claude-code-chat/issues"
+
+[tool.setuptools]
+packages = ["claude_code_chat"]
+
+[tool.setuptools.package-data]
+claude_code_chat = ["*.html", "*.md"]

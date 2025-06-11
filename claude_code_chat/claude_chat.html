@@ -252,10 +252,26 @@
         .message-content a {
             color: #007bff;
             text-decoration: none;
+            padding: 2px 4px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
         }
         
-        .message-content a:hover {
+        .message-content a:hover,
+        .message-content a:active {
             text-decoration: underline;
+            background-color: #e7f3ff;
+        }
+        
+        /* モバイル用のタップエリア拡大 */
+        @media (max-width: 768px) {
+            .message-content a {
+                padding: 8px 6px;
+                margin: 2px 0;
+                display: inline-block;
+                min-height: 44px;
+                line-height: 1.4;
+            }
         }
         
         .message-content hr {
@@ -345,6 +361,45 @@
             font-size: 11px;
             color: #999;
             margin-top: 5px;
+        }
+        
+        .directory-bar {
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .directory-bar span {
+            flex: 1;
+            color: #495057;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: monospace;
+        }
+
+        .directory-bar button {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            min-width: 32px;
+            height: 24px;
+        }
+
+        .directory-bar button:hover {
+            background: #495057;
         }
         
         .input-container {
@@ -482,16 +537,17 @@
 </head>
 <body>
     <div class="header">
-        <h1>🤖 Claude Code Chat - 会話型インターフェース</h1>
+        <h1>🤖 Claude Code Web Chat</h1>
     </div>
     
     <div class="chat-container" id="chatContainer">
         <div class="examples">
             <h3>💡 クリックして試してみる：</h3>
-            <span class="example-chip" onclick="sendExample('test_work.py を作ってください')">test_work.py を作成</span>
             <span class="example-chip" onclick="sendExample('hello.py ファイルを作成して')">hello.py 作成</span>
             <span class="example-chip" onclick="sendExample('どんなファイルが作れますか？')">作成可能なファイル</span>
             <span class="example-chip" onclick="sendExample('簡単なWebサーバーを作って')">Webサーバー作成</span>
+            <span class="example-chip" onclick="sendExample('GitHub Issues のURLリンク付き一覧を出して')">GitHub Issues 一覧</span>
+            <span class="example-chip" onclick="sendExample('GitHub Pull Requests のURLリンク付き一覧を出して')">GitHub PRs 一覧</span>
         </div>
         
         <div id="messages"></div>
@@ -508,6 +564,13 @@
         </div>
     </div>
     
+    <!-- ディレクトリ情報バー -->
+    <div class="directory-bar">
+        <span id="currentDirectory">📁 読み込み中...</span>
+        <button id="directoryInfoButton" onclick="showDirectoryInfo()" title="ディレクトリ情報を表示">📋</button>
+        <button id="directoryUpButton" onclick="goUpDirectory()" title="上のディレクトリへ">⬆️</button>
+    </div>
+    
     <div class="input-container">
         <input type="text" id="messageInput" placeholder="メッセージを入力..." autofocus>
         <button id="sendButton" onclick="sendMessage()">送信</button>
@@ -518,6 +581,7 @@
         localStorage.setItem('claude_chat_session', sessionId);
         let currentStreamingMessage = null;
         let currentController = null; // 現在のリクエスト制御用
+        let currentDirectory = '';
         
         function generateSessionId() {
             return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -526,10 +590,104 @@
         // メッセージフォーマット関数をメモ化
         const memoizedFormatters = new Map();
         
+        // ディレクトリ操作関数
+        async function updateDirectoryInfo() {
+            try {
+                const response = await fetch('/api/directory/info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    currentDirectory = result.current_directory;
+                    document.getElementById('currentDirectory').textContent = `📁 ${currentDirectory}`;
+                }
+            } catch (error) {
+                console.error('ディレクトリ情報の取得に失敗:', error);
+            }
+        }
+        
+        async function changeDirectory(path) {
+            try {
+                const response = await fetch('/api/directory/change', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        session_id: sessionId,
+                        path: path 
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        currentDirectory = result.current_directory;
+                        
+                        // シンボリックリンクかどうかで表示を変更
+                        const isSymlink = result.message.includes('シンボリックリンク');
+                        const icon = isSymlink ? '🔗' : '📁';
+                        document.getElementById('currentDirectory').textContent = `${icon} ${currentDirectory}`;
+                        
+                        addMessage(result.message, 'system');
+                    } else {
+                        addMessage(`エラー: ${result.message}`, 'system');
+                    }
+                } else {
+                    addMessage('ディレクトリ変更に失敗しました', 'system');
+                }
+            } catch (error) {
+                console.error('ディレクトリ変更に失敗:', error);
+                addMessage('ディレクトリ変更でエラーが発生しました', 'system');
+            }
+        }
+        
+        async function showDirectoryInfo() {
+            try {
+                const response = await fetch('/api/directory/info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    let content = `📁 現在のディレクトリ: ${result.current_directory}\n\n`;
+                    
+                    if (result.items && result.items.length > 0) {
+                        content += '📋 ディレクトリ内容:\n';
+                        result.items.forEach(item => {
+                            const icon = item.is_directory ? '📁' : '📄';
+                            content += `${icon} ${item.name}\n`;
+                        });
+                    } else {
+                        content += '(空のディレクトリまたはアクセス権限なし)';
+                    }
+                    
+                    addMessage(content, 'system');
+                }
+            } catch (error) {
+                console.error('ディレクトリ情報の取得に失敗:', error);
+                addMessage('ディレクトリ情報の取得でエラーが発生しました', 'system');
+            }
+        }
+        
+        function goUpDirectory() {
+            const parentPath = '..';
+            changeDirectory(parentPath);
+        }
+        
         function addMessage(content, type = 'assistant', isStreaming = false) {
             const messagesDiv = document.getElementById('messages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
+            
+            // システムメッセージの場合は特別なスタイルを適用
+            if (type === 'system') {
+                messageDiv.style.opacity = '0.8';
+                messageDiv.style.fontStyle = 'italic';
+            }
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
@@ -696,6 +854,12 @@
             } else {
                 // 通常のテキストの場合は最小限の処理
                 
+                // Markdownリンク（重要：GitHub Issues/PRs用）
+                content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+                
+                // 生のURL（https://で始まるURL）
+                content = content.replace(/(^|[^"])(https?:\/\/[^\s<>"]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+                
                 // インラインコードのみ
                 content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
                 
@@ -798,13 +962,63 @@
             return text.replace(/[&<>"']/g, char => escapeMap[char]);
         }
         
+        // ディレクトリコマンドを処理
+        async function handleDirectoryCommands(message) {
+            const trimmed = message.trim().toLowerCase();
+            
+            // cdコマンド
+            if (trimmed.startsWith('cd ')) {
+                const path = message.slice(3).trim();
+                addMessage(message, 'user');
+                await changeDirectory(path);
+                return true;
+            }
+            
+            // lsコマンド
+            if (trimmed === 'ls' || trimmed === 'dir') {
+                addMessage(message, 'user');
+                await showDirectoryInfo();
+                return true;
+            }
+            
+            // pwdコマンド
+            if (trimmed === 'pwd') {
+                addMessage(message, 'user');
+                // サーバーから最新のディレクトリ情報を取得
+                await updateDirectoryInfo();
+                addMessage(`現在のディレクトリ: ${currentDirectory}`, 'system');
+                return true;
+            }
+            
+            // セッション情報表示コマンド（デバッグ用）
+            if (trimmed === 'session' || trimmed === 'debug') {
+                addMessage(message, 'user');
+                addMessage(`セッション情報:
+- セッションID: ${sessionId}
+- 現在のディレクトリ: ${currentDirectory}
+- ブラウザ表示: ${document.getElementById('currentDirectory').textContent}`, 'system');
+                return true;
+            }
+            
+            return false;
+        }
+
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             if (!message) return;
             
             const sendButton = document.getElementById('sendButton');
+            // 即座にボタンを無効化（二重送信防止）
+            if (sendButton.disabled) return; // 既に処理中なら何もしない
             sendButton.disabled = true;
+            
+            // ディレクトリコマンドをチェック
+            if (await handleDirectoryCommands(message)) {
+                input.value = '';
+                sendButton.disabled = false; // ディレクトリコマンドは即座に完了
+                return;
+            }
             
             // ユーザーメッセージを即座に表示
             addMessage(message, 'user');
@@ -822,7 +1036,7 @@
             
             try {
                 // ストリーミングレスポンスを試みる
-                const response = await fetch('http://127.0.0.1:8081/api/chat/stream', {
+                const response = await fetch('/api/chat/stream', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -863,7 +1077,7 @@
                         fallbackController.abort();
                     }, 180000); // フォールバックも3分
                     
-                    const response = await fetch('http://127.0.0.1:8081/api/chat', {
+                    const response = await fetch('/api/chat', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -1005,7 +1219,10 @@
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                sendMessage();
+                const sendButton = document.getElementById('sendButton');
+                if (!sendButton.disabled) { // 処理中でなければ送信
+                    sendMessage();
+                }
             }
         });
         
@@ -1038,8 +1255,11 @@
 
 何をお手伝いしましょうか？`);
         
-        // Prism.jsの遅延読み込み
+        // 初期化処理
         window.addEventListener('load', () => {
+            // ディレクトリ情報を取得
+            updateDirectoryInfo();
+            
             // 必要に応じてPrism.jsを適用
             if (typeof Prism !== 'undefined') {
                 Prism.highlightAll();

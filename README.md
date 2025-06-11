@@ -1,6 +1,110 @@
-# Claude Code Chat UI - ストリーミング対応チャット型インターフェース
+# Claude Code Web Chat
 
-HTTP + Claude Code CLI 直接統合によるリアルタイムストリーミングチャットシステム
+Chat-based Web UI for Claude Code CLI with smartphone control support.  
+スマートフォンからClaude Code CLIを制御できるチャットベースのWebインターフェースです。
+
+## Installation
+
+### From PyPI (when published)
+```bash
+pip install claude-code-chat
+```
+
+### From Source
+```bash
+git clone <repository-url>
+cd claude-code-chat
+pip install -e .
+```
+
+## Usage
+
+### Single Instance
+```bash
+# Full command name
+claude-code-chat
+
+# Short alias
+ccc
+
+# Custom port
+claude-code-chat --port 8082
+
+# Show help
+claude-code-chat --help
+```
+
+### Multiple Instances
+```bash
+# Start multiple instances on different ports
+claude-code-chat --port 8081 &    # Instance 1
+claude-code-chat --port 8082 &    # Instance 2
+claude-code-chat --port 8083 &    # Instance 3
+
+# Access different projects simultaneously
+cd /path/to/project1 && claude-code-chat --port 8081 &
+cd /path/to/project2 && claude-code-chat --port 8082 &
+```
+
+**Features:**
+- 🚀 **Multiple Projects**: Run separate instances for different projects
+- 🔍 **Port Conflict Detection**: Automatic port availability checking
+- 📱 **Instance Identification**: Each instance shows unique Process ID
+- 📁 **Independent Working Directories**: Each instance uses its startup directory as root
+
+## 📱 スマートフォンからの接続手順
+
+**前提条件:**
+- ✅ サーバーが起動していること
+- ✅ PCとスマートフォンが同一WiFiネットワークに接続済み
+
+### 1. WSL2のIPアドレス確認
+**WSLターミナルで実行**
+```bash
+hostname -I
+# 例: 172.20.240.2 ← この数字をメモ
+```
+
+### 2. WindowsのIPアドレス確認
+**コマンドプロンプトで実行**
+```cmd
+ipconfig
+# 例: 192.168.1.100 ← この数字をメモ
+```
+
+### 3. ポート転送設定
+**コマンドプロンプト（管理者権限）で実行**  
+Windowsキー → 「cmd」と入力 → 右クリック → 「管理者として実行」
+```cmd
+netsh interface portproxy add v4tov4 listenport=8081 listenaddress=0.0.0.0 connectport=8081 connectaddress=172.20.240.2
+```
+※ `connectaddress=` の部分は手順1で確認したWSL2のIPアドレスに変更してください
+
+### 4. ファイアウォール設定
+**同じコマンドプロンプト（管理者権限）で続けて実行**
+```cmd
+netsh advfirewall firewall add rule name="WSL2 Claude Chat" dir=in action=allow protocol=TCP localport=8081
+```
+
+### 5. スマートフォンブラウザでアクセス
+```
+http://[手順2でメモしたWindowsのIP]:8081/claude_chat.html
+
+例: http://192.168.1.100:8081/claude_chat.html
+```
+
+### 🔧 うまくいかない場合
+**コマンドプロンプト（管理者権限）で実行**
+```cmd
+# 転送設定確認
+netsh interface portproxy show all
+
+# ポート確認
+netstat -an | findstr 8081
+
+# 設定削除
+netsh interface portproxy delete v4tov4 listenport=8081 listenaddress=0.0.0.0
+```
 
 ## 概要
 
@@ -13,33 +117,43 @@ HTTP + Claude Code CLI 直接統合によるリアルタイムストリーミン
 - **Server-Sent Events**: 双方向通信による即座な応答
 - **進捗アイコン**: 🔄 初期化 → ⚙️ システム準備 → 💭 応答中 → ✅ 完了
 - **コスト・時間表示**: 実行コストと処理時間の可視化
+- **ESCキャンセル**: 処理中にESCキーで即座にキャンセル可能
+
+### 📁 ディレクトリナビゲーション
+- **セッション別作業ディレクトリ**: チャットセッションごとに独立した作業環境
+- **GUI操作**: ディレクトリバーによる視覚的なパス表示と操作
+- **ディレクトリコマンド**: `cd`, `ls`, `pwd` コマンドでの直接操作
 
 ### 💬 高度なチャットインターフェース
 - **日本語サポート**: UTF-8エンコーディングによる完全な日本語表示
 - **モダンUI**: レスポンシブデザインとリアルタイムタイピング表示
 - **会話文脈保持**: 選択肢→回答の流れを理解した対話
 - **Markdownレンダリング**: .mdファイル時の美しい表示
-- **コードハイライト**: 多言語対応シンタックスハイライト
+- **コードハイライト**: Prism.js による多言語シンタックスハイライト
 
 ### 🔧 Claude Code 統合
 - **ストリーミング実行**: `--output-format stream-json` による進捗表示
 - **権限バイパス**: ファイル作成権限を自動的に許可
-- **文脈理解**: 会話履歴を含む適切な応答
+- **作業ディレクトリ認識**: セッション別ディレクトリでの確実なファイル操作
+- **文脈理解**: 会話履歴とディレクトリ情報を含む適切な応答
 - **3分タイムアウト**: 長時間処理にも対応
 - **フォールバック機能**: ストリーミング失敗時の通常モード切り替え
 
 ## 📁 ファイル操作
-- **ファイル作成**: Claude Code CLIが直接ファイルを作成
+- **ファイル作成**: Claude Code CLIが指定ディレクトリに直接ファイルを作成
 - **プログラミング支援**: Python、JavaScript等のファイル生成
 - **テストファイル**: 自動テストファイル生成対応
+- **ディレクトリ管理**: セッションごとの独立した作業環境
+- **パス解決**: 相対パス・絶対パスの適切な処理
 
-## 🚀 セットアップ
+## Quick Start
 
 ```bash
-# 1. チャットサーバー起動
-python claude_chat_server.py
+# Install and start
+pip install -e .
+claude-code-chat
 
-# 2. ブラウザでアクセス（スマートフォン推奨）
+# Access via browser
 # http://127.0.0.1:8081/claude_chat.html
 ```
 
@@ -47,148 +161,53 @@ python claude_chat_server.py
 
 ```
 [スマートフォンブラウザ] ←→ [HTML/JS UI] ←→ [Python HTTPサーバー] ←→ [Claude Code CLI]
-                                ↓                    ↓
-                         [ストリーミング]      [メモリ内セッション管理]
-                         [進捗表示]           [会話履歴・文脈]
+                ↓                    ↓                    ↓                  ↓
+          [ディレクトリバー]      [ストリーミング]      [セッション管理]      [cwd設定]
+          [GUIナビゲーション]      [進捗表示]       [会話履歴]       [ディレクトリ管理]
+          [ESCキャンセル]         [コスト表示]      [ディレクトリ情報]   [マルチインスタンス]
 ```
 
 ## 📋 ファイル構成
 
-- **claude_chat_server.py** - HTTPサーバーとチャットAPI（ストリーミング対応）
-- **claude_chat.html** - モダンチャットインターフェース（Markdown対応）
-- **REQUIREMENTS.md** - 詳細な要件定義書
-
-## 🔌 API仕様
-
-### ストリーミングチャットエンドポイント
 ```
-POST /api/chat/stream
-Content-Type: application/json
-
-{
-  "message": "ユーザーメッセージ",
-  "session_id": "session_uuid"
-}
-```
-
-### ストリーミングレスポンス（Server-Sent Events）
-```
-data: {"type":"init","message":"処理を開始しています..."}
-data: {"type":"system","message":"Claude Code初期化中..."}
-data: {"type":"assistant","content":"レスポンス内容"}
-data: {"type":"result","cost":0.0156,"duration":5876}
-data: [DONE]
-```
-
-### 通常チャットエンドポイント（フォールバック）
-```
-POST /api/chat
-Content-Type: application/json
-
-{
-  "message": "ユーザーメッセージ",
-  "session_id": "session_uuid"
-}
+pyproject.toml          # パッケージ設定
+requirements.txt        # Python依存パッケージ  
+README.md              # このファイル
+claude_code_chat/      # パッケージ本体
+├── __init__.py
+├── server.py          # HTTPサーバー
+├── claude_chat.html   # チャットUI
+└── CLAUDE.md          # Claude Code用プロジェクトガイド
 ```
 
 ## 💡 使用例
 
-### ファイル作成とリアルタイム進捗
-```
+```bash
+# ファイル作成
 「test.py ファイルを作成して」
 → 🔄 処理開始 → ⚙️ 初期化 → 💭 応答中 → ✅ 完了
-→ 💰 $0.0127  ⏱️ 4.2秒
+
+# ディレクトリ移動
+cd ./subdir            # サブディレクトリへ移動
+ls                     # ディレクトリ内容一覧
+pwd                    # 現在のパス表示
+
+# 会話の文脈理解
+Claude: 「実行したいファイルを選んでください: 1. calculator.py 2. server.py」
+User: 「1」
+→ Claude が選択肢を理解して calculator.py を実行
 ```
 
-### 会話の文脈理解
-```
-Claude: 実行したい具体的なコマンドやファイルを教えてください。例えば：
-1. python calculator.py を実行したい
-2. claude_chat_server.py のコードを見たい
-3. 特定のファイルの内容を読みたい
+## 🔧 主要技術
 
-User: 1
-→ Claude が「1番目の選択肢」を理解してcalculator.pyを実行
-```
+- **Server-Sent Events**: リアルタイムストリーミング
+- **セッション管理**: UUID生成、履歴保持
+- **フォールバック**: ストリーミング失敗時の自動切り替え
+- **Markdown対応**: .mdファイル時の美しい表示とシンタックスハイライト
+- **ESCキャンセル**: 処理中の即座なキャンセル
 
-### Markdownファイル表示
-```
-「README.md を表示して」
-→ 見出し、リスト、コードブロックが美しくレンダリング
-```
+## ⚠️ 注意事項
 
-## 🔧 技術詳細
-
-### ストリーミング技術
-- **Server-Sent Events**: リアルタイム双方向通信
-- **JSON Stream Parser**: Claude Code CLI の stream-json 出力を解析
-- **進捗可視化**: アイコン・アニメーション・統計情報表示
-- **AbortController**: タイムアウト・キャンセル制御
-
-### セッション管理
-- **UUID生成**: セッションごとにユニークID
-- **履歴保持**: 50メッセージまで保存、10メッセージをコンテキストとして使用
-- **ブラウザ保存**: localStorage でセッションID永続化
-- **文脈理解**: 選択肢形式の対話を適切に処理
-
-### エラーハンドリング・信頼性
-- **3分タイムアウト**: 長時間処理対応
-- **フォールバック機能**: ストリーミング失敗時の通常API自動切り替え
-- **接続管理**: 適切なリソース解放とクリーンアップ
-- **日本語エラー**: ユーザーフレンドリーなエラーメッセージ
-
-### Markdownレンダリング
-- **条件分岐**: .mdファイル時のみフル機能適用
-- **軽量パーサー**: カスタム実装による高速処理
-- **シンタックスハイライト**: Prism.js統合
-- **レスポンシブ**: モバイル最適化デザイン
-
-## 🔒 セキュリティ
-
-### ローカル開発専用設計
-- **ローカルホストのみ**: 127.0.0.1 でのみサーバー起動
-- **認証なし**: 開発環境での簡単アクセス
-- **権限バイパス**: `--dangerously-skip-permissions` フラグ使用
-
-### 注意事項
-- **本番環境非対応**: 認証・セキュリティ機能なし
-- **ファイル権限**: Claude Code CLIに完全なファイル作成権限を付与
-- **ネットワーク**: ローカルネットワーク内でのみ使用推奨
-
-## 🔧 トラブルシューティング
-
-### ストリーミング接続の問題
-```bash
-# サーバーが起動しているか確認
-ps aux | grep claude_chat_server
-
-# ポート8081が使用中でないか確認
-netstat -an | grep 8081
-
-# 2回目以降のリクエストでハング → サーバー再起動
-```
-
-### タイムアウト・パフォーマンス
-- **3分タイムアウト**: 長時間処理は自動でタイムアウト
-- **フォールバック**: ストリーミング失敗時は通常モードで再試行
-- **進捗表示**: 処理状況が分からない場合は画面で進捗確認
-
-### Markdown表示の問題
-- **.mdファイル**: 拡張子やファイル名に「README」「REQUIREMENTS」を含む場合のみMarkdown適用
-- **通常ファイル**: コードファイルは最小限のフォーマット（コードブロックと太字のみ）
-
-### Claude Code CLI の問題
-```bash
-# Claude Code CLIが正しくインストールされているか確認
-claude --version
-
-# 権限エラーの場合
-claude --print --dangerously-skip-permissions "test"
-```
-
-## 📈 パフォーマンス最適化
-
-- **メモ化**: フォーマット結果のキャッシュ
-- **ストリーミング**: リアルタイム進捗で体感速度向上
-- **レスポンシブ**: requestAnimationFrame による滑らかなスクロール
-- **軽量**: 外部依存を最小限に抑制
+- **ローカル開発専用**: 認証なし、localhost のみ
+- **権限バイパス**: `--dangerously-skip-permissions` 使用
+- **本番環境非対応**: セキュリティ機能なし

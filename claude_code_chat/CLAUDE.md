@@ -185,6 +185,23 @@ cp .env.example .env
 - CORS protection configurable via environment variables
 - Rate limiting support via SlowAPI integration
 
+### Directory Navigation Support
+- Session-based directory management with independent working directories per chat session
+- Directory navigation commands: `cd [path]`, `ls`, `pwd`
+- GUI navigation with directory bar showing current path (📁 normal, 🔗 symlink)
+- Server maintains session-specific working directories in `session_directories` dictionary
+- Claude Code CLI executes in the specified working directory context
+- **Symbolic Link Workaround**: For external directories, automatic symlink creation within project root
+- Automatic cleanup of symbolic links on session end and server shutdown
+- Full path access supported through symlink redirection to bypass Claude Code CLI restrictions
+
+### Working Directory Awareness
+- **Immediate Directory Recognition**: Claude Code immediately recognizes the current working directory
+- **File Operation Isolation**: All file operations are restricted to the current working directory
+- **No Cross-Directory Confusion**: Files in other directories are treated as non-existent
+- **First-Time Accuracy**: File creation requests are executed in the correct directory from the first attempt
+- **Strong System Prompts**: Enhanced prompts with clear directory rules and visual indicators (🔴)
+
 ## Development Commands
 
 ### Start Chat System
