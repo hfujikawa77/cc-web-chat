@@ -20,15 +20,43 @@
         }
         
         .header {
-            background: #2c3e50;
+            background: #1a1a1a;
             color: white;
-            padding: 15px 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            font-family: 'Courier New', monospace;
         }
         
         .header h1 {
             font-size: 20px;
             font-weight: 500;
+            display: none;
+        }
+        
+        .ascii-banner {
+            text-align: center;
+            font-size: 10px;
+            line-height: 1;
+            white-space: pre;
+            overflow-x: auto;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+        
+        .ascii-cc { color: #00D9FF; }
+        .ascii-web { color: #00FF00; }
+        .ascii-chat { color: #FF00FF; }
+        
+        @media (max-width: 768px) {
+            .ascii-banner {
+                font-size: 6px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .ascii-banner {
+                font-size: 4px;
+            }
         }
         
         .chat-container {
@@ -538,6 +566,14 @@
 <body>
     <div class="header">
         <h1>🤖 Claude Code Web Chat</h1>
+        <div class="ascii-banner">
+<span class="ascii-cc">  ██████╗  ██████╗ </span>    <span class="ascii-web">██╗    ██╗ ███████╗ ██████╗ </span>      <span class="ascii-chat">██████╗ ██╗  ██╗  █████╗  ████████╗</span>
+<span class="ascii-cc"> ██╔════╝ ██╔════╝ </span>    <span class="ascii-web">██║    ██║ ██╔════╝ ██╔══██╗</span>     <span class="ascii-chat">██╔════╝ ██║  ██║ ██╔══██╗ ╚══██╔══╝</span>
+<span class="ascii-cc"> ██║      ██║      </span>    <span class="ascii-web">██║ █╗ ██║ █████╗   ██████╔╝</span>     <span class="ascii-chat">██║      ███████║ ███████║    ██║   </span>
+<span class="ascii-cc"> ██║      ██║      </span>    <span class="ascii-web">██║███╗██║ ██╔══╝   ██╔══██╗</span>     <span class="ascii-chat">██║      ██╔══██║ ██╔══██║    ██║   </span>
+<span class="ascii-cc"> ╚██████╗ ╚██████╗ </span>    <span class="ascii-web">╚███╔███╔╝ ███████╗ ██████╔╝</span>     <span class="ascii-chat">╚██████╗ ██║  ██║ ██║  ██║    ██║   </span>
+<span class="ascii-cc">  ╚═════╝  ╚═════╝ </span>     <span class="ascii-web">╚══╝╚══╝  ╚══════╝ ╚═════╝ </span>      <span class="ascii-chat">╚═════╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝    ╚═╝   </span>
+        </div>
     </div>
     
     <div class="chat-container" id="chatContainer">

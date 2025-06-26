@@ -823,12 +823,43 @@ Examples:
     # インスタンス識別子を生成
     instance_id = f"PID{os.getpid()}"
     
-    print("=" * 60)
-    print(f"🚀 Claude Code Chat Server v1.0.0 [Instance: {instance_id}]")
-    print(f"📍 URL: http://{HOST}:{PORT}/claude_chat.html")
+    # ANSI color codes
+    CYAN = '\033[96m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    MAGENTA = '\033[95m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    
+    # ASCII art logo with colors
+    print("\n" + f"{BLUE}{'=' * 80}{RESET}")
+    print(f"""{BOLD}{CYAN}
+  ██████╗  ██████╗     {GREEN}██╗    ██╗ ███████╗ ██████╗       {MAGENTA}██████╗ ██╗  ██╗  █████╗  ████████╗
+ ██╔════╝ ██╔════╝     {GREEN}██║    ██║ ██╔════╝ ██╔══██╗     {MAGENTA}██╔════╝ ██║  ██║ ██╔══██╗ ╚══██╔══╝
+ ██║      ██║          {GREEN}██║ █╗ ██║ █████╗   ██████╔╝     {MAGENTA}██║      ███████║ ███████║    ██║
+ ██║      ██║          {GREEN}██║███╗██║ ██╔══╝   ██╔══██╗     {MAGENTA}██║      ██╔══██║ ██╔══██║    ██║
+ ╚██████╗ ╚██████╗     {GREEN}╚███╔███╔╝ ███████╗ ██████╔╝     {MAGENTA}╚██████╗ ██║  ██║ ██║  ██║    ██║
+  ╚═════╝  ╚═════╝      {GREEN}╚══╝╚══╝  ╚══════╝ ╚═════╝       {MAGENTA}╚═════╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝    ╚═╝
+{RESET}    """)
+    print(f"{BLUE}{'=' * 80}{RESET}")
+    
+    # Get actual IP address
+    try:
+        hostname_result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
+        if hostname_result.returncode == 0 and hostname_result.stdout.strip():
+            # Get the first IP address from the output
+            actual_ip = hostname_result.stdout.strip().split()[0]
+        else:
+            actual_ip = HOST
+    except:
+        actual_ip = HOST
+    
+    print(f"\n🚀 Claude Code Chat Server v1.0.0 [Instance: {instance_id}]")
+    print(f"📍 URL: http://{actual_ip}:{PORT}/claude_chat.html")
     print(f"📁 Root Directory: {STARTUP_DIRECTORY}")
     print(f"🔧 Process ID: {os.getpid()}")
-    print("=" * 60)
+    print("=" * 80)
     print("💬 会話型インターフェース")
     print("🔧 デバッグモード有効")
     print(f"⏰ タイムアウト: {CLAUDE_TIMEOUT}秒")
